@@ -3,6 +3,7 @@ from datetime import datetime
 from pathlib import Path
 import logging
 import shutil
+import time
 
 from app.config import settings
 
@@ -118,6 +119,7 @@ class CaptureService:
                 browser = p.chromium.launch(headless=True)
                 page = browser.new_page(viewport={"width": 1280, "height": 720})
                 page.goto(source_url, wait_until="networkidle", timeout=settings.capture_timeout_ms)
+                time.sleep(settings.capture_wait_after_load_sec)
                 page.screenshot(path=str(target_path), full_page=False)
                 browser.close()
             return True

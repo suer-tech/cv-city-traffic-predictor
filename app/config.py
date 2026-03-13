@@ -15,10 +15,13 @@ class Settings(BaseSettings):
     capture_provider: str = "playwright"
     capture_allow_synthetic_fallback: bool = False
     capture_timeout_ms: int = 20_000
+    capture_wait_after_load_sec: int = 5
 
     camera_congestion_threshold_count: int = 25
     route_congestion_threshold_count: int = 60
 
+    vision_model: str = "yolov8n.pt"
+    vision_confidence_threshold: float = 0.4
     cv_count_mape_threshold: float = 0.35
     forecast_mape_10_threshold: float = 0.30
     forecast_mape_20_threshold: float = 0.35

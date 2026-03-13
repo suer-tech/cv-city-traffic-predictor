@@ -1,7 +1,9 @@
 # vision
 
 Назначение модуля:
-- Вход: данные из предыдущего шага пайплайна.
-- Выход: данные/события для следующего шага пайплайна.
+- Вход: путь к изображению (скриншот камеры).
+- Выход: `VisionResult` — vehicle_count, density, quality_score, boxes (боксы каждого авто).
 
-См. реализацию в папке app/vision.
+Детекция:
+- YOLOv8 (Ultralytics) с моделью COCO — классы car, motorcycle, bus, truck.
+- Конфиг: `VISION_MODEL`, `VISION_CONFIDENCE_THRESHOLD`.

@@ -18,7 +18,9 @@ dependencies = [
   "pandas>=2.2.2",
   "scikit-learn>=1.5.1",
   "mlflow>=2.15.1",
-  "python-json-logger>=2.0.7"
+  "python-json-logger>=2.0.7",
+  "playwright>=1.49.0",
+  "ultralytics>=8.0.0"
 ]
 
 [project.optional-dependencies]

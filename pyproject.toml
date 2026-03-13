@@ -1,0 +1,43 @@
+[project]
+name = "cv-city-traffic-predictor"
+version = "0.1.0"
+description = "MVP traffic monitoring and forecasting from Ufanet camera screenshots"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115.0",
+  "uvicorn>=0.30.0",
+  "pydantic>=2.8.0",
+  "pydantic-settings>=2.3.0",
+  "sqlalchemy>=2.0.32",
+  "psycopg[binary]>=3.2.0",
+  "alembic>=1.13.0",
+  "apscheduler>=3.10.4",
+  "numpy>=1.26.0",
+  "opencv-python-headless>=4.10.0.84",
+  "pillow>=10.4.0",
+  "pandas>=2.2.2",
+  "scikit-learn>=1.5.1",
+  "mlflow>=2.15.1",
+  "python-json-logger>=2.0.7"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3.0",
+  "pytest-cov>=5.0.0",
+  "ruff>=0.6.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]

@@ -2,8 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 import logging
-
-from PIL import Image, ImageDraw
+import shutil
 
 from app.config import settings
 
@@ -20,11 +19,10 @@ class CaptureResult:
 
 
 class CaptureService:
-    """Capture service with provider fallback.
+    """Capture service with explicit provider policy.
 
-    Providers:
-    - playwright (if installed)
-    - synthetic (always available)
+    By default, uses real browser capture (`playwright`) and does NOT silently
+    fallback to synthetic frames unless `capture_allow_synthetic_fallback=true`.
     """
 
     def capture(self, camera_id: str, source_url: str) -> CaptureResult:
@@ -42,7 +40,7 @@ class CaptureService:
         persisted_hourly = now.minute % settings.persist_snapshot_every_minutes == 0
         if persisted_hourly:
             hourly_path = hourly_dir / image_name
-            Image.open(ep_path).save(hourly_path)
+            shutil.copyfile(ep_path, hourly_path)
             image_uri = str(hourly_path)
             try:
                 ep_path.unlink(missing_ok=True)
@@ -81,10 +79,18 @@ class CaptureService:
             ok = self._capture_with_playwright(source_url, target_path)
             if ok:
                 return "playwright"
+            if not settings.capture_allow_synthetic_fallback:
+                raise RuntimeError(
+                    "Playwright capture failed and synthetic fallback is disabled. "
+                    "Set CAPTURE_ALLOW_SYNTHETIC_FALLBACK=true only for local debug."
+                )
             logger.warning("playwright_capture_unavailable_fallback", extra={"camera_id": camera_id})
 
-        self._generate_placeholder_frame(target_path, camera_id, ts, source_url)
-        return "synthetic"
+        if provider == "synthetic" or settings.capture_allow_synthetic_fallback:
+            self._generate_placeholder_frame(target_path, camera_id, ts, source_url)
+            return "synthetic"
+
+        raise RuntimeError(f"Unsupported capture provider: {provider}")
 
     @staticmethod
     def _capture_with_playwright(source_url: str, target_path: Path) -> bool:
@@ -106,6 +112,8 @@ class CaptureService:
 
     @staticmethod
     def _generate_placeholder_frame(path: Path, camera_id: str, ts: datetime, source_url: str) -> None:
+        from PIL import Image, ImageDraw
+
         img = Image.new("RGB", (1280, 720), color=(35, 35, 35))
         draw = ImageDraw.Draw(img)
         draw.rectangle((100, 150, 1180, 650), outline=(20, 200, 20), width=4)

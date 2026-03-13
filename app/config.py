@@ -12,7 +12,8 @@ class Settings(BaseSettings):
     inference_interval_minutes: int = 10
     retrain_interval_hours: int = 24
     capture_retry_count: int = 3
-    capture_provider: str = "synthetic"
+    capture_provider: str = "playwright"
+    capture_allow_synthetic_fallback: bool = False
     capture_timeout_ms: int = 20_000
 
     camera_congestion_threshold_count: int = 25

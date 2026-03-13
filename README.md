@@ -38,8 +38,9 @@
 
 ## Проверка детекции вручную
 1. Нажмите в Admin UI кнопку `Run capture+detect once` или `Run full pipeline once`.
-2. Система сохранит кадр с боксами в `data/snapshots/annotated/...`.
-3. Смотреть можно прямо в UI (блок `Latest annotated detection`) или через API `GET /debug/annotated`.
+2. Для ручного запуска всегда принудительно используется только реальный кадр (`force_real_capture=true`), без synthetic fallback.
+3. Система сохранит новый кадр с боксами в `data/snapshots/annotated/...` с точностью до секунд в имени файла.
+4. Смотреть можно прямо в UI (блок `Latest annotated detection`) или через API `GET /debug/annotated`. В UI включён cache-bust параметр, поэтому картинка не берётся из старого кэша браузера.
 
 
 ## Важно про реальный кадр

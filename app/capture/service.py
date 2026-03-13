@@ -25,17 +25,23 @@ class CaptureService:
     fallback to synthetic frames unless `capture_allow_synthetic_fallback=true`.
     """
 
-    def capture(self, camera_id: str, source_url: str) -> CaptureResult:
-        now = datetime.utcnow().replace(second=0, microsecond=0)
+    def capture(self, camera_id: str, source_url: str, *, force_real: bool = False) -> CaptureResult:
+        now = datetime.utcnow().replace(microsecond=0)
         ephemeral_dir = Path(settings.snapshot_root) / "ephemeral" / camera_id
         hourly_dir = Path(settings.snapshot_root) / "hourly" / camera_id
         ephemeral_dir.mkdir(parents=True, exist_ok=True)
         hourly_dir.mkdir(parents=True, exist_ok=True)
 
-        image_name = now.strftime("%Y%m%d_%H%M.png")
+        image_name = now.strftime("%Y%m%d_%H%M%S.png")
         ep_path = ephemeral_dir / image_name
 
-        provider = self._capture_provider(camera_id=camera_id, source_url=source_url, target_path=ep_path, ts=now)
+        provider = self._capture_provider(
+            camera_id=camera_id,
+            source_url=source_url,
+            target_path=ep_path,
+            ts=now,
+            force_real=force_real,
+        )
 
         persisted_hourly = now.minute % settings.persist_snapshot_every_minutes == 0
         if persisted_hourly:
@@ -61,10 +67,10 @@ class CaptureService:
             provider=provider,
         )
 
-    def capture_with_retries(self, camera_id: str, source_url: str) -> CaptureResult | None:
+    def capture_with_retries(self, camera_id: str, source_url: str, *, force_real: bool = False) -> CaptureResult | None:
         for attempt in range(1, settings.capture_retry_count + 1):
             try:
-                return self.capture(camera_id, source_url)
+                return self.capture(camera_id, source_url, force_real=force_real)
             except Exception as exc:  # noqa: BLE001
                 logger.warning(
                     "capture_failed_attempt",
@@ -73,13 +79,21 @@ class CaptureService:
         logger.error("capture_failed_exhausted", extra={"camera_id": camera_id})
         return None
 
-    def _capture_provider(self, camera_id: str, source_url: str, target_path: Path, ts: datetime) -> str:
+    def _capture_provider(
+        self,
+        camera_id: str,
+        source_url: str,
+        target_path: Path,
+        ts: datetime,
+        *,
+        force_real: bool = False,
+    ) -> str:
         provider = settings.capture_provider.lower()
         if provider == "playwright":
             ok = self._capture_with_playwright(source_url, target_path)
             if ok:
                 return "playwright"
-            if not settings.capture_allow_synthetic_fallback:
+            if force_real or not settings.capture_allow_synthetic_fallback:
                 raise RuntimeError(
                     "Playwright capture failed and synthetic fallback is disabled. "
                     "Set CAPTURE_ALLOW_SYNTHETIC_FALLBACK=true only for local debug."

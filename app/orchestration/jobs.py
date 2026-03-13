@@ -25,14 +25,18 @@ def _annotated_output_path(camera_id: str, ts: datetime) -> Path:
     return Path(settings.snapshot_root) / "annotated" / camera_id / filename
 
 
-def capture_and_extract_job(save_debug_artifacts: bool = False) -> list[str]:
+def capture_and_extract_job(save_debug_artifacts: bool = False, force_real_capture: bool = False) -> list[str]:
     now = datetime.utcnow()
     annotated_paths: list[str] = []
     with SessionLocal() as session:
         repo = Repository(session)
         cameras = repo.list_enabled_cameras()
         for camera in cameras:
-            capture = capture_service.capture_with_retries(camera.camera_id, camera.source_url)
+            capture = capture_service.capture_with_retries(
+                camera.camera_id,
+                camera.source_url,
+                force_real=force_real_capture,
+            )
             if capture is None:
                 continue
 
@@ -135,7 +139,10 @@ def inference_job() -> None:
     logger.info("inference_job_completed", extra={"ts": now.isoformat()})
 
 
-def run_pipeline_once(save_debug_artifacts: bool = True) -> list[str]:
-    annotated = capture_and_extract_job(save_debug_artifacts=save_debug_artifacts)
+def run_pipeline_once(save_debug_artifacts: bool = True, force_real_capture: bool = False) -> list[str]:
+    annotated = capture_and_extract_job(
+        save_debug_artifacts=save_debug_artifacts,
+        force_real_capture=force_real_capture,
+    )
     inference_job()
     return annotated

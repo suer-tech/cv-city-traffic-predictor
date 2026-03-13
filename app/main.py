@@ -219,26 +219,26 @@ def list_annotated(camera_id: str | None = None, limit: int = Query(default=10, 
 
 @app.post("/jobs/run-once", response_model=JobRunResponse)
 def run_jobs_once() -> JobRunResponse:
-    run_pipeline_once(save_debug_artifacts=True)
-    return JobRunResponse(status="ok", started_at_utc=datetime.utcnow())
+    annotated = run_pipeline_once(save_debug_artifacts=True, force_real_capture=True)
+    return JobRunResponse(status="ok", started_at_utc=datetime.utcnow(), annotated_images=annotated)
 
 
 @app.post("/jobs/capture", response_model=JobRunResponse)
 def run_capture() -> JobRunResponse:
-    capture_and_extract_job(save_debug_artifacts=True)
-    return JobRunResponse(status="ok", started_at_utc=datetime.utcnow())
+    annotated = capture_and_extract_job(save_debug_artifacts=True, force_real_capture=True)
+    return JobRunResponse(status="ok", started_at_utc=datetime.utcnow(), annotated_images=annotated)
 
 
 @app.post("/jobs/inference", response_model=JobRunResponse)
 def run_inference() -> JobRunResponse:
     inference_job()
-    return JobRunResponse(status="ok", started_at_utc=datetime.utcnow())
+    return JobRunResponse(status="ok", started_at_utc=datetime.utcnow(), annotated_images=[])
 
 
 @app.post("/jobs/retrain", response_model=JobRunResponse)
 def run_retrain() -> JobRunResponse:
     retrain_job()
-    return JobRunResponse(status="ok", started_at_utc=datetime.utcnow())
+    return JobRunResponse(status="ok", started_at_utc=datetime.utcnow(), annotated_images=[])
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -291,7 +291,7 @@ def admin_page() -> HTMLResponse:
 
 <script>
 async function j(url, opts={}) { const r = await fetch(url, {headers:{'Content-Type':'application/json'}, ...opts}); return r.json(); }
-async function runJob(url){ await j(url, {method:'POST'}); await loadData(); }
+async function runJob(url){ const res = await j(url, {method:'POST'}); if(res.annotated_images && res.annotated_images.length){ console.log('annotated', res.annotated_images[0]); } await loadData(); }
 async function saveCamera(){
   const payload = {
     camera_id: camera_id.value, source_url: source_url.value, intersection_id: intersection_id.value,
@@ -311,7 +311,7 @@ async function saveRoute(){
 function renderAnnotated(items){
   if(!items.length){ annotated.innerHTML = 'No annotated images yet.'; return; }
   const x = items[0];
-  annotated.innerHTML = `<div><b>${x.camera_id}</b> @ ${x.modified_at_utc}</div><img src='${x.url}' alt='annotated detection'>`;
+  annotated.innerHTML = `<div><b>${x.camera_id}</b> @ ${x.modified_at_utc}</div><img src='${x.url}?t=${Date.now()}' alt='annotated detection'>`;
 }
 async function loadData(){
   const [s,c,r,p,a] = await Promise.all([

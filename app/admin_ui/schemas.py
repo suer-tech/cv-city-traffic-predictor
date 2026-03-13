@@ -30,6 +30,7 @@ class RouteUpsertRequest(BaseModel):
 class JobRunResponse(BaseModel):
     status: str
     started_at_utc: datetime
+    annotated_images: list[str] = Field(default_factory=list)
 
 
 class DashboardSummary(BaseModel):

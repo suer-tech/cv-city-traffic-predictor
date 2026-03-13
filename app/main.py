@@ -1,8 +1,9 @@
 from datetime import datetime
-import json
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.admin_ui.schemas import (
     CameraToggleRequest,
@@ -22,6 +23,10 @@ from app.storage.repository import Repository
 
 configure_logging()
 app = FastAPI(title=settings.ui_title)
+
+snapshot_root_path = Path(settings.snapshot_root)
+snapshot_root_path.mkdir(parents=True, exist_ok=True)
+app.mount("/snapshots", StaticFiles(directory=str(snapshot_root_path)), name="snapshots")
 
 
 @app.on_event("startup")
@@ -191,15 +196,36 @@ def upsert_route(payload: RouteUpsertRequest) -> dict:
     return {"status": "ok", "route_id": payload.route_id}
 
 
+@app.get("/debug/annotated")
+def list_annotated(camera_id: str | None = None, limit: int = Query(default=10, ge=1, le=50)) -> list[dict]:
+    root = snapshot_root_path / "annotated"
+    pattern = "*/*_annotated.png" if camera_id is None else f"{camera_id}/*_annotated.png"
+    files = sorted(root.glob(pattern), key=lambda p: p.stat().st_mtime, reverse=True)[:limit]
+
+    results: list[dict] = []
+    for p in files:
+        rel = p.relative_to(snapshot_root_path)
+        camera = p.parent.name
+        results.append(
+            {
+                "camera_id": camera,
+                "file_path": str(p),
+                "url": f"/snapshots/{rel.as_posix()}",
+                "modified_at_utc": datetime.utcfromtimestamp(p.stat().st_mtime).isoformat(),
+            }
+        )
+    return results
+
+
 @app.post("/jobs/run-once", response_model=JobRunResponse)
 def run_jobs_once() -> JobRunResponse:
-    run_pipeline_once()
+    run_pipeline_once(save_debug_artifacts=True)
     return JobRunResponse(status="ok", started_at_utc=datetime.utcnow())
 
 
 @app.post("/jobs/capture", response_model=JobRunResponse)
 def run_capture() -> JobRunResponse:
-    capture_and_extract_job()
+    capture_and_extract_job(save_debug_artifacts=True)
     return JobRunResponse(status="ok", started_at_utc=datetime.utcnow())
 
 
@@ -228,13 +254,15 @@ def admin_page() -> HTMLResponse:
     .card { background: white; border-radius: 10px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
     button { margin-right: 8px; }
     pre { max-height: 260px; overflow:auto; background: #101522; color:#e9efff; padding: 10px; border-radius:8px; }
-    input, textarea { width: 100%; margin: 4px 0; }
+    input { width: 100%; margin: 4px 0; }
+    #annotated img { max-width: 100%; border: 1px solid #ddd; border-radius: 6px; margin-top: 8px; }
   </style>
 </head>
 <body>
   <h1>CV City Traffic Predictor Admin UI</h1>
   <div class='card'>
     <button onclick='runJob("/jobs/run-once")'>Run full pipeline once</button>
+    <button onclick='runJob("/jobs/capture")'>Run capture+detect once</button>
     <button onclick='loadData()'>Refresh</button>
     <div id='summary'></div>
   </div>
@@ -256,6 +284,7 @@ def admin_page() -> HTMLResponse:
     <button onclick='saveRoute()'>Save route</button>
   </div>
 
+  <div class='card'><h3>Latest annotated detection</h3><div id='annotated'>No annotated images yet.</div></div>
   <div class='card'><h3>Cameras</h3><pre id='cameras'></pre></div>
   <div class='card'><h3>Routes</h3><pre id='routes'></pre></div>
   <div class='card'><h3>Predictions</h3><pre id='preds'></pre></div>
@@ -279,12 +308,20 @@ async function saveRoute(){
   await j('/routes', {method:'POST', body: JSON.stringify(payload)});
   await loadData();
 }
+function renderAnnotated(items){
+  if(!items.length){ annotated.innerHTML = 'No annotated images yet.'; return; }
+  const x = items[0];
+  annotated.innerHTML = `<div><b>${x.camera_id}</b> @ ${x.modified_at_utc}</div><img src='${x.url}' alt='annotated detection'>`;
+}
 async function loadData(){
-  const [s,c,r,p] = await Promise.all([j('/dashboard/summary'), j('/cameras'), j('/routes'), j('/predictions?limit=30')]);
+  const [s,c,r,p,a] = await Promise.all([
+    j('/dashboard/summary'), j('/cameras'), j('/routes'), j('/predictions?limit=30'), j('/debug/annotated?limit=5')
+  ]);
   summary.textContent = 'Cameras: '+s.enabled_cameras+' | Routes: '+s.enabled_routes+' | Predictions: '+s.last_predictions;
   cameras.textContent = JSON.stringify(c, null, 2);
   routes.textContent = JSON.stringify(r, null, 2);
   preds.textContent = JSON.stringify(p, null, 2);
+  renderAnnotated(a);
 }
 loadData();
 </script>

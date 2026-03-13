@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from app.capture.service import CaptureService
 from app.config import settings
@@ -19,8 +20,14 @@ forecast_service = ForecastService()
 evaluation_service = EvaluationService()
 
 
-def capture_and_extract_job() -> None:
+def _annotated_output_path(camera_id: str, ts: datetime) -> Path:
+    filename = ts.strftime("%Y%m%d_%H%M%S") + "_annotated.png"
+    return Path(settings.snapshot_root) / "annotated" / camera_id / filename
+
+
+def capture_and_extract_job(save_debug_artifacts: bool = False) -> list[str]:
     now = datetime.utcnow()
+    annotated_paths: list[str] = []
     with SessionLocal() as session:
         repo = Repository(session)
         cameras = repo.list_enabled_cameras()
@@ -30,6 +37,16 @@ def capture_and_extract_job() -> None:
                 continue
 
             vision = vision_service.analyze(capture.image_path)
+            source_image_uri = capture.image_path
+            if save_debug_artifacts:
+                annotated_path = vision_service.save_annotated(
+                    capture.image_path,
+                    vision.boxes,
+                    str(_annotated_output_path(camera.camera_id, capture.capture_ts_utc)),
+                )
+                source_image_uri = annotated_path
+                annotated_paths.append(annotated_path)
+
             metric = TrafficMetric5m(
                 timestamp_utc=floor_to_5m(capture.capture_ts_utc),
                 camera_id=camera.camera_id,
@@ -39,11 +56,15 @@ def capture_and_extract_job() -> None:
                 density=vision.density,
                 avg_speed_proxy=None,
                 quality_score=vision.quality_score,
-                source_image_uri=capture.image_path,
+                source_image_uri=source_image_uri,
             )
             repo.upsert_metric(metric)
         session.commit()
-    logger.info("capture_and_extract_job_completed", extra={"ts": now.isoformat()})
+    logger.info(
+        "capture_and_extract_job_completed",
+        extra={"ts": now.isoformat(), "save_debug_artifacts": save_debug_artifacts},
+    )
+    return annotated_paths
 
 
 def retrain_job() -> None:
@@ -114,6 +135,7 @@ def inference_job() -> None:
     logger.info("inference_job_completed", extra={"ts": now.isoformat()})
 
 
-def run_pipeline_once() -> None:
-    capture_and_extract_job()
+def run_pipeline_once(save_debug_artifacts: bool = True) -> list[str]:
+    annotated = capture_and_extract_job(save_debug_artifacts=save_debug_artifacts)
     inference_job()
+    return annotated
